@@ -1,6 +1,7 @@
 package com.mindex.challenge.service.impl;
 
 import com.mindex.challenge.data.Employee;
+import com.mindex.challenge.data.ReportingStructure;
 import com.mindex.challenge.service.EmployeeService;
 import org.junit.Before;
 import org.junit.Test;
@@ -14,7 +15,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.junit4.SpringRunner;
-
+import java.util.ArrayList;
+import java.util.Collections;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
@@ -24,6 +26,7 @@ public class EmployeeServiceImplTest {
 
     private String employeeUrl;
     private String employeeIdUrl;
+    private String reportingStructureUrl;
 
     @Autowired
     private EmployeeService employeeService;
@@ -38,6 +41,7 @@ public class EmployeeServiceImplTest {
     public void setup() {
         employeeUrl = "http://localhost:" + port + "/employee";
         employeeIdUrl = "http://localhost:" + port + "/employee/{id}";
+        reportingStructureUrl = employeeIdUrl + "/reportingStructure";
     }
 
     @Test
@@ -75,6 +79,37 @@ public class EmployeeServiceImplTest {
                         readEmployee.getEmployeeId()).getBody();
 
         assertEmployeeEquivalence(readEmployee, updatedEmployee);
+    }
+
+    /**
+     * Verify that ReportingStructure is successfully created
+     */
+    @Test
+    public void testReportingStructure() {
+        // Insert Employee Hierarchy
+        Employee depthThree = new Employee();
+        depthThree = restTemplate.postForEntity(employeeUrl, depthThree, Employee.class).getBody();
+        assertNotNull(depthThree.getEmployeeId());
+
+        ArrayList<Employee> secondDepthEmployees = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            Employee newEmployee = new Employee();
+            if (i == 0) {
+                newEmployee.setDirectReports(Collections.singletonList(depthThree));
+            }
+            newEmployee = restTemplate.postForEntity(employeeUrl, newEmployee, Employee.class).getBody();
+            assertNotNull(newEmployee.getEmployeeId());
+            secondDepthEmployees.add(newEmployee);
+        }
+
+        Employee root = new Employee();
+        root.setDirectReports(secondDepthEmployees);
+        root = restTemplate.postForEntity(employeeUrl, root, Employee.class).getBody();
+        assertNotNull(root.getEmployeeId());
+        assertEquals(5, root.getDirectReports().size());
+
+        ReportingStructure result = restTemplate.getForEntity(reportingStructureUrl, ReportingStructure.class, root.getEmployeeId()).getBody();
+        assertEquals(6, result.getNumberOfReports());
     }
 
     private static void assertEmployeeEquivalence(Employee expected, Employee actual) {
